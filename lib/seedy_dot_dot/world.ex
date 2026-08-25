@@ -3,10 +3,23 @@ defmodule SeedyDotDot.World do
   Immutable world definitions loaded from the SeedyDotDot DSL.
   """
 
-  defstruct [:start_room, rooms: %{}]
+  defstruct [:start_room, rooms: %{}, objects: %{}]
 
   @type room :: %{id: String.t(), description: String.t(), exits: %{String.t() => String.t()}}
-  @type t :: %__MODULE__{start_room: String.t(), rooms: %{String.t() => room()}}
+
+  @type object :: %{
+          id: String.t(),
+          name: String.t(),
+          description: String.t(),
+          location: String.t(),
+          portable: boolean()
+        }
+
+  @type t :: %__MODULE__{
+          start_room: String.t(),
+          rooms: %{String.t() => room()},
+          objects: %{String.t() => object()}
+        }
 
   @directions ~w(north south east west)
 
@@ -30,13 +43,15 @@ defmodule SeedyDotDot.World do
   @spec validate(t()) :: :ok | {:error, String.t()}
   def validate(%__MODULE__{start_room: nil}), do: {:error, "world has no start room"}
 
-  def validate(%__MODULE__{start_room: start_room, rooms: rooms}) do
+  def validate(%__MODULE__{start_room: start_room, rooms: rooms, objects: objects}) do
     cond do
       not Map.has_key?(rooms, start_room) ->
         {:error, "start room #{inspect(start_room)} does not exist"}
 
       true ->
-        validate_exits(rooms)
+        with :ok <- validate_exits(rooms) do
+          validate_objects(objects, rooms)
+        end
     end
   end
 
@@ -54,6 +69,9 @@ defmodule SeedyDotDot.World do
 
       "room " <> room_id ->
         parse_room(room_id, rest, world)
+
+      "object " <> object_id ->
+        parse_object(object_id, rest, world)
 
       directive ->
         {:error, "unexpected directive: #{inspect(directive)}"}
@@ -99,6 +117,64 @@ defmodule SeedyDotDot.World do
     end
   end
 
+  defp parse_object("", _rest, _world), do: {:error, "object requires an ID"}
+
+  defp parse_object(object_id, _rest, %__MODULE__{objects: objects})
+       when is_map_key(objects, object_id),
+       do: {:error, "object #{inspect(object_id)} is defined more than once"}
+
+  defp parse_object(object_id, _rest, %__MODULE__{rooms: rooms})
+       when is_map_key(rooms, object_id),
+       do: {:error, "object #{inspect(object_id)} conflicts with a room ID"}
+
+  defp parse_object(object_id, lines, world) do
+    object = %{id: object_id, name: nil, description: nil, location: nil, portable: nil}
+
+    with {:ok, object, rest} <- parse_object_body(lines, object),
+         :ok <- validate_object_fields(object) do
+      parse_lines(rest, %{world | objects: Map.put(world.objects, object_id, object)})
+    end
+  end
+
+  defp parse_object_body([], _object), do: {:error, "object is missing end"}
+  defp parse_object_body(["end" | rest], object), do: {:ok, object, rest}
+
+  defp parse_object_body([line | rest], object) do
+    case String.trim(line) do
+      "name " <> name when name != "" ->
+        parse_object_body(rest, %{object | name: name})
+
+      "description " <> description when description != "" ->
+        parse_object_body(rest, %{object | description: description})
+
+      "at " <> location when location != "" ->
+        parse_object_body(rest, %{object | location: location})
+
+      "portable" ->
+        parse_object_body(rest, %{object | portable: true})
+
+      "fixed" ->
+        parse_object_body(rest, %{object | portable: false})
+
+      directive ->
+        {:error, "unexpected object directive: #{inspect(directive)}"}
+    end
+  end
+
+  defp validate_object_fields(%{id: id, name: nil}),
+    do: {:error, "object #{inspect(id)} has no name"}
+
+  defp validate_object_fields(%{id: id, description: nil}),
+    do: {:error, "object #{inspect(id)} has no description"}
+
+  defp validate_object_fields(%{id: id, location: nil}),
+    do: {:error, "object #{inspect(id)} has no starting location"}
+
+  defp validate_object_fields(%{id: id, portable: nil}),
+    do: {:error, "object #{inspect(id)} must be portable or fixed"}
+
+  defp validate_object_fields(_object), do: :ok
+
   defp validate_exits(rooms) do
     Enum.reduce_while(rooms, :ok, fn {room_id, room}, :ok ->
       case Enum.find(room.exits, fn {_direction, destination} ->
@@ -111,6 +187,18 @@ defmodule SeedyDotDot.World do
           {:halt,
            {:error,
             "room #{inspect(room_id)} has #{direction} exit to missing room #{inspect(destination)}"}}
+      end
+    end)
+  end
+
+  defp validate_objects(objects, rooms) do
+    Enum.reduce_while(objects, :ok, fn {object_id, object}, :ok ->
+      if Map.has_key?(rooms, object.location) do
+        {:cont, :ok}
+      else
+        {:halt,
+         {:error,
+          "object #{inspect(object_id)} starts in missing room #{inspect(object.location)}"}}
       end
     end)
   end

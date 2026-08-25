@@ -5,9 +5,13 @@ defmodule SeedyDotDot.Game do
 
   alias SeedyDotDot.World
 
-  defstruct [:world, :current_room]
+  defstruct [:world, :current_room, object_locations: %{}]
 
-  @type t :: %__MODULE__{world: World.t(), current_room: String.t()}
+  @type t :: %__MODULE__{
+          world: World.t(),
+          current_room: String.t(),
+          object_locations: %{String.t() => String.t() | :inventory}
+        }
 
   @directions %{
     "north" => "north",
@@ -21,12 +25,23 @@ defmodule SeedyDotDot.Game do
   }
 
   @spec new(World.t()) :: t()
-  def new(%World{} = world), do: %__MODULE__{world: world, current_room: world.start_room}
+  def new(%World{} = world) do
+    object_locations = Map.new(world.objects, fn {id, object} -> {id, object.location} end)
+    %__MODULE__{world: world, current_room: world.start_room, object_locations: object_locations}
+  end
 
   @spec command(t(), String.t()) :: {t(), String.t()}
   def command(%__MODULE__{} = game, command) when is_binary(command) do
     case command |> String.trim() |> String.downcase() do
       "look" -> {game, describe_current_room(game)}
+      "inventory" -> {game, inventory(game)}
+      "i" -> {game, inventory(game)}
+      "take " <> noun -> take(game, noun)
+      "get " <> noun -> take(game, noun)
+      "drop " <> noun -> drop(game, noun)
+      "examine " <> noun -> examine(game, noun)
+      "look at " <> noun -> examine(game, noun)
+      "x " <> noun -> examine(game, noun)
       direction when is_map_key(@directions, direction) -> move(game, @directions[direction])
       _ -> {game, "I don't understand that."}
     end
@@ -45,6 +60,90 @@ defmodule SeedyDotDot.Game do
     end
   end
 
-  defp describe_current_room(game), do: room(game).description
+  defp take(game, noun) do
+    with {:ok, object_id, object} <- find_object(game, noun),
+         :ok <- object_here(game, object_id),
+         :ok <- portable(object) do
+      {%{game | object_locations: Map.put(game.object_locations, object_id, :inventory)},
+       "Taken."}
+    else
+      :not_found -> {game, "You don't see that here."}
+      :not_here -> {game, "You don't see that here."}
+      {:fixed, object} -> {game, "You can't take the #{object.name}."}
+    end
+  end
+
+  defp drop(game, noun) do
+    with {:ok, object_id, _object} <- find_object(game, noun),
+         :ok <- carrying(game, object_id) do
+      {%{game | object_locations: Map.put(game.object_locations, object_id, game.current_room)},
+       "Dropped."}
+    else
+      :not_found -> {game, "You aren't carrying that."}
+      :not_carrying -> {game, "You aren't carrying that."}
+    end
+  end
+
+  defp examine(game, noun) do
+    with {:ok, object_id, object} <- find_object(game, noun),
+         :ok <- accessible(game, object_id) do
+      {game, object.description}
+    else
+      :not_found -> {game, "You don't see that here."}
+      :not_accessible -> {game, "You don't see that here."}
+    end
+  end
+
+  defp inventory(game) do
+    case object_names_at(game, :inventory) do
+      [] -> "You aren't carrying anything."
+      names -> "You are carrying: #{Enum.join(names, ", ")}."
+    end
+  end
+
+  defp describe_current_room(game) do
+    description = room(game).description
+
+    case object_names_at(game, game.current_room) do
+      [] -> description
+      names -> "#{description}\n\nYou see here: #{Enum.join(names, ", ")}."
+    end
+  end
+
+  defp find_object(game, noun) do
+    normalized_noun = String.trim(noun)
+
+    case Enum.find(game.world.objects, fn {id, object} ->
+           id == normalized_noun or String.downcase(object.name) == normalized_noun
+         end) do
+      {id, object} -> {:ok, id, object}
+      nil -> :not_found
+    end
+  end
+
+  defp object_here(game, object_id) do
+    if game.object_locations[object_id] == game.current_room, do: :ok, else: :not_here
+  end
+
+  defp carrying(game, object_id) do
+    if game.object_locations[object_id] == :inventory, do: :ok, else: :not_carrying
+  end
+
+  defp accessible(game, object_id) do
+    if game.object_locations[object_id] in [game.current_room, :inventory],
+      do: :ok,
+      else: :not_accessible
+  end
+
+  defp portable(%{portable: true}), do: :ok
+  defp portable(object), do: {:fixed, object}
+
+  defp object_names_at(game, location) do
+    game.object_locations
+    |> Enum.filter(fn {_id, object_location} -> object_location == location end)
+    |> Enum.map(fn {id, _location} -> game.world.objects[id].name end)
+    |> Enum.sort()
+  end
+
   defp room(game), do: Map.fetch!(game.world.rooms, game.current_room)
 end

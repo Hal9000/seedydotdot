@@ -20,7 +20,20 @@ end
 room ruby_room
   Everything here is slightly too elegant. A small red gemstone
   rests on a pedestal.
-  For reasons that are not yet implemented, you cannot take it.
   The corridor is west.
   west corridor
+end
+
+object ruby
+  name ruby
+  description The ruby is red enough to make a point of it.
+  at ruby_room
+  portable
+end
+
+object pedestal
+  name pedestal
+  description The pedestal is far too elegant to be portable.
+  at ruby_room
+  fixed
 end
