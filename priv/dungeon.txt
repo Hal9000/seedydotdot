@@ -20,8 +20,16 @@ end
 room ruby_room
   Everything here is slightly too elegant. A small red gemstone
   rests on a pedestal.
-  The corridor is west.
+  The corridor is west. A dubious staircase leads north.
   west corridor
+  north segvault if carrying.ruby
+end
+
+room segvault
+  You stand before THE SEGVAULT. It hums with the smug certainty
+  of a memory error that has not happened yet.
+  The staircase is south.
+  south ruby_room
 end
 
 object ruby

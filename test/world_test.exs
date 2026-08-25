@@ -6,9 +6,10 @@ defmodule SeedyDotDot.WorldTest do
   test "parses a small world with prose and exits" do
     world = """
     start lobby
+    fact door.open
     room lobby
       Welcome to the lobby.
-      north corridor
+      north corridor if door.open
     end
     room corridor
       The corridor is dim.
@@ -25,7 +26,12 @@ defmodule SeedyDotDot.WorldTest do
     assert {:ok, parsed} = World.parse(world)
     assert parsed.start_room == "lobby"
     assert parsed.rooms["lobby"].description == "  Welcome to the lobby."
-    assert parsed.rooms["lobby"].exits == %{"north" => "corridor"}
+
+    assert parsed.rooms["lobby"].exits == %{
+             "north" => %{destination: "corridor", condition: "door.open"}
+           }
+
+    assert parsed.facts == MapSet.new(["door.open"])
 
     assert parsed.objects["key"] == %{
              id: "key",
@@ -74,5 +80,19 @@ defmodule SeedyDotDot.WorldTest do
     """
 
     assert {:error, ~s(object "ruby" starts in missing room "nowhere")} = World.parse(world)
+  end
+
+  test "rejects a conditional exit that references an unknown fact" do
+    world = """
+    start lobby
+    room lobby
+      north corridor if door.open
+    end
+    room corridor
+    end
+    """
+
+    assert {:error, ~s(room "lobby" has north exit with unknown fact "door.open")} =
+             World.parse(world)
   end
 end

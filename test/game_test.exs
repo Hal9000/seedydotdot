@@ -7,6 +7,7 @@ defmodule SeedyDotDot.GameTest do
     {:ok, world} =
       World.parse("""
       start lobby
+      fact machine.active
       room lobby
         The lobby.
         north corridor
@@ -14,6 +15,11 @@ defmodule SeedyDotDot.GameTest do
       room corridor
         The corridor.
         south lobby
+        north vault if carrying.key
+      end
+      room vault
+        The vault.
+        south corridor
       end
       object key
         name brass key
@@ -77,5 +83,26 @@ defmodule SeedyDotDot.GameTest do
     assert {^game, "You can't take the statue."} = Game.command(game, "take statue")
     assert {moved_game, "  The corridor."} = Game.command(game, "north")
     assert {^moved_game, "You don't see that here."} = Game.command(moved_game, "take key")
+  end
+
+  test "fact queries support stored and derived facts", %{game: game} do
+    assert Game.true?(game, "machine.active")
+    refute Game.true?(game, "machine.broken")
+    refute Game.true?(game, "carrying.key")
+    assert Game.true?(game, "here.key")
+
+    assert {taken_game, "Taken."} = Game.command(game, "take key")
+    assert Game.true?(taken_game, "carrying.key")
+    refute Game.true?(taken_game, "here.key")
+  end
+
+  test "a conditional exit requires its fact", %{game: game} do
+    assert {corridor_game, "  The corridor."} = Game.command(game, "north")
+    assert {^corridor_game, "You can't go that way."} = Game.command(corridor_game, "north")
+
+    assert {carrying_game, "Taken."} = Game.command(game, "take key")
+    assert {with_key_game, "  The corridor."} = Game.command(carrying_game, "north")
+    assert {vault_game, "  The vault."} = Game.command(with_key_game, "north")
+    assert vault_game.current_room == "vault"
   end
 end

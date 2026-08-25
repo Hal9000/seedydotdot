@@ -3,9 +3,15 @@ defmodule SeedyDotDot.World do
   Immutable world definitions loaded from the SeedyDotDot DSL.
   """
 
-  defstruct [:start_room, rooms: %{}, objects: %{}]
+  defstruct [:start_room, rooms: %{}, objects: %{}, facts: MapSet.new()]
 
-  @type room :: %{id: String.t(), description: String.t(), exits: %{String.t() => String.t()}}
+  @type exit :: %{destination: String.t(), condition: String.t() | nil}
+
+  @type room :: %{
+          id: String.t(),
+          description: String.t(),
+          exits: %{String.t() => exit()}
+        }
 
   @type object :: %{
           id: String.t(),
@@ -18,7 +24,8 @@ defmodule SeedyDotDot.World do
   @type t :: %__MODULE__{
           start_room: String.t(),
           rooms: %{String.t() => room()},
-          objects: %{String.t() => object()}
+          objects: %{String.t() => object()},
+          facts: MapSet.t(String.t())
         }
 
   @directions ~w(north south east west)
@@ -43,13 +50,13 @@ defmodule SeedyDotDot.World do
   @spec validate(t()) :: :ok | {:error, String.t()}
   def validate(%__MODULE__{start_room: nil}), do: {:error, "world has no start room"}
 
-  def validate(%__MODULE__{start_room: start_room, rooms: rooms, objects: objects}) do
+  def validate(%__MODULE__{start_room: start_room, rooms: rooms, objects: objects, facts: facts}) do
     cond do
       not Map.has_key?(rooms, start_room) ->
         {:error, "start room #{inspect(start_room)} does not exist"}
 
       true ->
-        with :ok <- validate_exits(rooms) do
+        with :ok <- validate_exits(rooms, facts, objects) do
           validate_objects(objects, rooms)
         end
     end
@@ -73,6 +80,9 @@ defmodule SeedyDotDot.World do
       "object " <> object_id ->
         parse_object(object_id, rest, world)
 
+      "fact " <> fact ->
+        parse_fact(fact, rest, world)
+
       directive ->
         {:error, "unexpected directive: #{inspect(directive)}"}
     end
@@ -85,6 +95,16 @@ defmodule SeedyDotDot.World do
 
   defp parse_start(room_id, rest, world),
     do: parse_lines(rest, %{world | start_room: room_id})
+
+  defp parse_fact("", _rest, _world), do: {:error, "fact requires a name"}
+
+  defp parse_fact(fact, rest, %__MODULE__{facts: facts} = world) do
+    if MapSet.member?(facts, fact) do
+      {:error, "fact #{inspect(fact)} is defined more than once"}
+    else
+      parse_lines(rest, %{world | facts: MapSet.put(facts, fact)})
+    end
+  end
 
   defp parse_room("", _rest, _world), do: {:error, "room requires an ID"}
 
@@ -109,11 +129,26 @@ defmodule SeedyDotDot.World do
         if Map.has_key?(room.exits, direction) do
           {:error, "room #{inspect(room.id)} defines #{direction} more than once"}
         else
-          parse_room_body(rest, %{room | exits: Map.put(room.exits, direction, destination)})
+          with {:ok, exit} <- parse_exit(destination) do
+            parse_room_body(rest, %{room | exits: Map.put(room.exits, direction, exit)})
+          end
         end
 
       _ ->
         parse_room_body(rest, %{room | prose: [String.trim_trailing(line) | room.prose]})
+    end
+  end
+
+  defp parse_exit(destination) do
+    case String.split(destination, " if ", parts: 2) do
+      [room_id] ->
+        {:ok, %{destination: room_id, condition: nil}}
+
+      [room_id, condition] when room_id != "" and condition != "" ->
+        {:ok, %{destination: room_id, condition: condition}}
+
+      _ ->
+        {:error, "exit has an invalid condition"}
     end
   end
 
@@ -175,21 +210,37 @@ defmodule SeedyDotDot.World do
 
   defp validate_object_fields(_object), do: :ok
 
-  defp validate_exits(rooms) do
+  defp validate_exits(rooms, facts, objects) do
     Enum.reduce_while(rooms, :ok, fn {room_id, room}, :ok ->
-      case Enum.find(room.exits, fn {_direction, destination} ->
-             not Map.has_key?(rooms, destination)
+      case Enum.find(room.exits, fn {_direction, exit} ->
+             not Map.has_key?(rooms, exit.destination) or
+               not valid_condition?(exit.condition, facts, objects)
            end) do
         nil ->
           {:cont, :ok}
 
-        {direction, destination} ->
+        {direction, %{destination: destination}} when not is_map_key(rooms, destination) ->
           {:halt,
            {:error,
             "room #{inspect(room_id)} has #{direction} exit to missing room #{inspect(destination)}"}}
+
+        {direction, %{condition: condition}} ->
+          {:halt,
+           {:error,
+            "room #{inspect(room_id)} has #{direction} exit with unknown fact #{inspect(condition)}"}}
       end
     end)
   end
+
+  defp valid_condition?(nil, _facts, _objects), do: true
+
+  defp valid_condition?("carrying." <> object_id, _facts, objects),
+    do: Map.has_key?(objects, object_id)
+
+  defp valid_condition?("here." <> object_id, _facts, objects),
+    do: Map.has_key?(objects, object_id)
+
+  defp valid_condition?(fact, facts, _objects), do: MapSet.member?(facts, fact)
 
   defp validate_objects(objects, rooms) do
     Enum.reduce_while(objects, :ok, fn {object_id, object}, :ok ->
