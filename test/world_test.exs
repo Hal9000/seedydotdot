@@ -21,6 +21,11 @@ defmodule SeedyDotDot.WorldTest do
       at lobby
       portable
     end
+    action unlock corridor
+      require carrying.key
+      say The key turns.
+      clear door.open
+    end
     """
 
     assert {:ok, parsed} = World.parse(world)
@@ -32,6 +37,12 @@ defmodule SeedyDotDot.WorldTest do
            }
 
     assert parsed.facts == MapSet.new(["door.open"])
+
+    assert parsed.actions["unlock corridor"] == %{
+             command: "unlock corridor",
+             requirements: ["carrying.key"],
+             effects: [%{type: :say, text: "The key turns."}, %{type: :clear, fact: "door.open"}]
+           }
 
     assert parsed.objects["key"] == %{
              id: "key",
@@ -93,6 +104,20 @@ defmodule SeedyDotDot.WorldTest do
     """
 
     assert {:error, ~s(room "lobby" has north exit with unknown fact "door.open")} =
+             World.parse(world)
+  end
+
+  test "rejects an action that modifies an unknown stored fact" do
+    world = """
+    start lobby
+    room lobby
+    end
+    action break something
+      clear machine.active
+    end
+    """
+
+    assert {:error, ~s(action "break something" modifies unknown stored fact "machine.active")} =
              World.parse(world)
   end
 end

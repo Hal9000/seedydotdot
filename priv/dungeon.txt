@@ -1,4 +1,5 @@
 start lobby
+fact console.dormant
 
 room lobby
   You are in the neglected lobby of what appears to have once
@@ -28,6 +29,7 @@ end
 room segvault
   You stand before THE SEGVAULT. It hums with the smug certainty
   of a memory error that has not happened yet.
+  A black console has a suspiciously ruby-shaped socket.
   The staircase is south.
   south ruby_room
 end
@@ -44,4 +46,10 @@ object pedestal
   description The pedestal is far too elegant to be portable.
   at ruby_room
   fixed
+end
+
+action use ruby on console
+  require carrying.ruby
+  say The ruby fits the socket. Somewhere, a machine sounds less dormant.
+  clear console.dormant
 end

@@ -3,7 +3,7 @@ defmodule SeedyDotDot.World do
   Immutable world definitions loaded from the SeedyDotDot DSL.
   """
 
-  defstruct [:start_room, rooms: %{}, objects: %{}, facts: MapSet.new()]
+  defstruct [:start_room, rooms: %{}, objects: %{}, facts: MapSet.new(), actions: %{}]
 
   @type exit :: %{destination: String.t(), condition: String.t() | nil}
 
@@ -21,11 +21,20 @@ defmodule SeedyDotDot.World do
           portable: boolean()
         }
 
+  @type action :: %{
+          command: String.t(),
+          requirements: [String.t()],
+          effects: [effect()]
+        }
+
+  @type effect :: %{type: :say, text: String.t()} | %{type: :set | :clear, fact: String.t()}
+
   @type t :: %__MODULE__{
           start_room: String.t(),
           rooms: %{String.t() => room()},
           objects: %{String.t() => object()},
-          facts: MapSet.t(String.t())
+          facts: MapSet.t(String.t()),
+          actions: %{String.t() => action()}
         }
 
   @directions ~w(north south east west)
@@ -50,14 +59,21 @@ defmodule SeedyDotDot.World do
   @spec validate(t()) :: :ok | {:error, String.t()}
   def validate(%__MODULE__{start_room: nil}), do: {:error, "world has no start room"}
 
-  def validate(%__MODULE__{start_room: start_room, rooms: rooms, objects: objects, facts: facts}) do
+  def validate(%__MODULE__{
+        start_room: start_room,
+        rooms: rooms,
+        objects: objects,
+        facts: facts,
+        actions: actions
+      }) do
     cond do
       not Map.has_key?(rooms, start_room) ->
         {:error, "start room #{inspect(start_room)} does not exist"}
 
       true ->
-        with :ok <- validate_exits(rooms, facts, objects) do
-          validate_objects(objects, rooms)
+        with :ok <- validate_exits(rooms, facts, objects),
+             :ok <- validate_objects(objects, rooms) do
+          validate_actions(actions, facts, objects)
         end
     end
   end
@@ -83,6 +99,9 @@ defmodule SeedyDotDot.World do
       "fact " <> fact ->
         parse_fact(fact, rest, world)
 
+      "action " <> command ->
+        parse_action(command, rest, world)
+
       directive ->
         {:error, "unexpected directive: #{inspect(directive)}"}
     end
@@ -103,6 +122,45 @@ defmodule SeedyDotDot.World do
       {:error, "fact #{inspect(fact)} is defined more than once"}
     else
       parse_lines(rest, %{world | facts: MapSet.put(facts, fact)})
+    end
+  end
+
+  defp parse_action("", _rest, _world), do: {:error, "action requires a command"}
+
+  defp parse_action(command, _rest, %__MODULE__{actions: actions})
+       when is_map_key(actions, command),
+       do: {:error, "action #{inspect(command)} is defined more than once"}
+
+  defp parse_action(command, lines, world) do
+    action = %{command: command, requirements: [], effects: []}
+
+    with {:ok, action, rest} <- parse_action_body(lines, action) do
+      parse_lines(rest, %{world | actions: Map.put(world.actions, command, action)})
+    end
+  end
+
+  defp parse_action_body([], _action), do: {:error, "action is missing end"}
+  defp parse_action_body(["end" | rest], action), do: {:ok, action, rest}
+
+  defp parse_action_body([line | rest], action) do
+    case String.trim(line) do
+      "require " <> fact when fact != "" ->
+        parse_action_body(rest, %{action | requirements: action.requirements ++ [fact]})
+
+      "say " <> text when text != "" ->
+        parse_action_body(rest, %{action | effects: action.effects ++ [%{type: :say, text: text}]})
+
+      "set " <> fact when fact != "" ->
+        parse_action_body(rest, %{action | effects: action.effects ++ [%{type: :set, fact: fact}]})
+
+      "clear " <> fact when fact != "" ->
+        parse_action_body(rest, %{
+          action
+          | effects: action.effects ++ [%{type: :clear, fact: fact}]
+        })
+
+      directive ->
+        {:error, "unexpected action directive: #{inspect(directive)}"}
     end
   end
 
@@ -241,6 +299,34 @@ defmodule SeedyDotDot.World do
     do: Map.has_key?(objects, object_id)
 
   defp valid_condition?(fact, facts, _objects), do: MapSet.member?(facts, fact)
+
+  defp validate_actions(actions, facts, objects) do
+    Enum.reduce_while(actions, :ok, fn {command, action}, :ok ->
+      case Enum.find(action.requirements, &(not valid_condition?(&1, facts, objects))) do
+        nil ->
+          validate_action_effects(command, action.effects, facts)
+
+        fact ->
+          {:halt, {:error, "action #{inspect(command)} has unknown requirement #{inspect(fact)}"}}
+      end
+    end)
+  end
+
+  defp validate_action_effects(command, effects, facts) do
+    case Enum.find(effects, fn
+           %{type: type, fact: fact} when type in [:set, :clear] ->
+             not MapSet.member?(facts, fact)
+
+           _ ->
+             false
+         end) do
+      nil ->
+        :ok
+
+      %{fact: fact} ->
+        {:error, "action #{inspect(command)} modifies unknown stored fact #{inspect(fact)}"}
+    end
+  end
 
   defp validate_objects(objects, rooms) do
     Enum.reduce_while(objects, :ok, fn {object_id, object}, :ok ->

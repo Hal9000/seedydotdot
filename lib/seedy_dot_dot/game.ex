@@ -59,7 +59,7 @@ defmodule SeedyDotDot.Game do
       "look at " <> noun -> examine(game, noun)
       "x " <> noun -> examine(game, noun)
       direction when is_map_key(@directions, direction) -> move(game, @directions[direction])
-      _ -> {game, "I don't understand that."}
+      action -> run_action(game, action)
     end
   end
 
@@ -78,6 +78,36 @@ defmodule SeedyDotDot.Game do
       :error ->
         {game, "You can't go that way."}
     end
+  end
+
+  defp run_action(game, command) do
+    case Map.fetch(game.world.actions, command) do
+      {:ok, action} ->
+        if Enum.all?(action.requirements, &true?(game, &1)) do
+          apply_effects(game, action.effects)
+        else
+          {game, "That doesn't seem to work."}
+        end
+
+      :error ->
+        {game, "I don't understand that."}
+    end
+  end
+
+  defp apply_effects(game, effects) do
+    {new_game, output} =
+      Enum.reduce(effects, {game, []}, fn
+        %{type: :say, text: text}, {game, output} ->
+          {game, output ++ [text]}
+
+        %{type: :set, fact: fact}, {game, output} ->
+          {%{game | facts: MapSet.put(game.facts, fact)}, output}
+
+        %{type: :clear, fact: fact}, {game, output} ->
+          {%{game | facts: MapSet.delete(game.facts, fact)}, output}
+      end)
+
+    {new_game, Enum.join(output, "\n")}
   end
 
   defp take(game, noun) do

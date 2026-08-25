@@ -33,6 +33,16 @@ defmodule SeedyDotDot.GameTest do
         at lobby
         fixed
       end
+      action use key
+        require carrying.key
+        say The machine stops.
+        clear machine.active
+        say A tiny supervisor sighs.
+      end
+      action reset machine
+        set machine.active
+        say The machine starts.
+      end
       """)
 
     %{game: Game.new(world)}
@@ -104,5 +114,20 @@ defmodule SeedyDotDot.GameTest do
     assert {with_key_game, "  The corridor."} = Game.command(carrying_game, "north")
     assert {vault_game, "  The vault."} = Game.command(with_key_game, "north")
     assert vault_game.current_room == "vault"
+  end
+
+  test "data-defined actions check requirements before ordered effects", %{game: game} do
+    assert {^game, "That doesn't seem to work."} = Game.command(game, "use key")
+    assert Game.true?(game, "machine.active")
+
+    assert {carrying_game, "Taken."} = Game.command(game, "take key")
+
+    assert {stopped_game, "The machine stops.\nA tiny supervisor sighs."} =
+             Game.command(carrying_game, "use key")
+
+    refute Game.true?(stopped_game, "machine.active")
+
+    assert {reset_game, "The machine starts."} = Game.command(stopped_game, "reset machine")
+    assert Game.true?(reset_game, "machine.active")
   end
 end
