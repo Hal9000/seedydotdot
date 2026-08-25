@@ -14,12 +14,26 @@ defmodule SeedyDotDot.WorldTest do
       The corridor is dim.
       south lobby
     end
+    object key
+      name brass key
+      description A small brass key.
+      at lobby
+      portable
+    end
     """
 
     assert {:ok, parsed} = World.parse(world)
     assert parsed.start_room == "lobby"
     assert parsed.rooms["lobby"].description == "  Welcome to the lobby."
     assert parsed.rooms["lobby"].exits == %{"north" => "corridor"}
+
+    assert parsed.objects["key"] == %{
+             id: "key",
+             name: "brass key",
+             description: "A small brass key.",
+             location: "lobby",
+             portable: true
+           }
   end
 
   test "rejects an exit to a missing room" do
@@ -44,5 +58,21 @@ defmodule SeedyDotDot.WorldTest do
     """
 
     assert {:error, ~s(room "lobby" is defined more than once)} = World.parse(world)
+  end
+
+  test "rejects an object whose starting room does not exist" do
+    world = """
+    start lobby
+    room lobby
+    end
+    object ruby
+      name ruby
+      description A red gemstone.
+      at nowhere
+      portable
+    end
+    """
+
+    assert {:error, ~s(object "ruby" starts in missing room "nowhere")} = World.parse(world)
   end
 end
