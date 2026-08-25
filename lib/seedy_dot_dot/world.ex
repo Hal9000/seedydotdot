@@ -304,7 +304,10 @@ defmodule SeedyDotDot.World do
     Enum.reduce_while(actions, :ok, fn {command, action}, :ok ->
       case Enum.find(action.requirements, &(not valid_condition?(&1, facts, objects))) do
         nil ->
-          validate_action_effects(command, action.effects, facts)
+          case validate_action_effects(command, action.effects, facts) do
+            :ok -> {:cont, :ok}
+            error -> {:halt, error}
+          end
 
         fact ->
           {:halt, {:error, "action #{inspect(command)} has unknown requirement #{inspect(fact)}"}}
