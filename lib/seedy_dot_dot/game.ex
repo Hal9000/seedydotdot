@@ -5,12 +5,13 @@ defmodule SeedyDotDot.Game do
 
   alias SeedyDotDot.World
 
-  defstruct [:world, :current_room, object_locations: %{}]
+  defstruct [:world, :current_room, object_locations: %{}, facts: MapSet.new()]
 
   @type t :: %__MODULE__{
           world: World.t(),
           current_room: String.t(),
-          object_locations: %{String.t() => String.t() | :inventory}
+          object_locations: %{String.t() => String.t() | :inventory},
+          facts: MapSet.t(String.t())
         }
 
   @directions %{
@@ -27,8 +28,23 @@ defmodule SeedyDotDot.Game do
   @spec new(World.t()) :: t()
   def new(%World{} = world) do
     object_locations = Map.new(world.objects, fn {id, object} -> {id, object.location} end)
-    %__MODULE__{world: world, current_room: world.start_room, object_locations: object_locations}
+
+    %__MODULE__{
+      world: world,
+      current_room: world.start_room,
+      object_locations: object_locations,
+      facts: world.facts
+    }
   end
+
+  @spec true?(t(), String.t()) :: boolean()
+  def true?(%__MODULE__{} = game, "carrying." <> object_id),
+    do: game.object_locations[object_id] == :inventory
+
+  def true?(%__MODULE__{} = game, "here." <> object_id),
+    do: game.object_locations[object_id] == game.current_room
+
+  def true?(%__MODULE__{} = game, fact), do: MapSet.member?(game.facts, fact)
 
   @spec command(t(), String.t()) :: {t(), String.t()}
   def command(%__MODULE__{} = game, command) when is_binary(command) do
@@ -51,9 +67,13 @@ defmodule SeedyDotDot.Game do
     current_room = room(game)
 
     case Map.fetch(current_room.exits, direction) do
-      {:ok, destination} ->
-        moved_game = %{game | current_room: destination}
-        {moved_game, describe_current_room(moved_game)}
+      {:ok, %{destination: destination, condition: condition}} ->
+        if is_nil(condition) or true?(game, condition) do
+          moved_game = %{game | current_room: destination}
+          {moved_game, describe_current_room(moved_game)}
+        else
+          {game, "You can't go that way."}
+        end
 
       :error ->
         {game, "You can't go that way."}
