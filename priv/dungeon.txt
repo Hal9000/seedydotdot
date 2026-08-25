@@ -1,0 +1,26 @@
+start lobby
+
+room lobby
+  You are in the neglected lobby of what appears to have once
+  been a respectable computer science department.
+  A faded sign reads:
+  ABANDON ALL FRAMEWORKS, YE WHO ENTER HERE.
+  A corridor leads north.
+  north corridor
+end
+
+room corridor
+  You are in a poorly illuminated corridor. The carpet has a
+  repeating pattern that may or may not terminate.
+  The lobby is south. A red door is east.
+  south lobby
+  east ruby_room
+end
+
+room ruby_room
+  Everything here is slightly too elegant. A small red gemstone
+  rests on a pedestal.
+  For reasons that are not yet implemented, you cannot take it.
+  The corridor is west.
+  west corridor
+end
