@@ -29,6 +29,7 @@ defmodule SeedyDotDot.CLI do
 
           "q" ->
             :ok
+
           _ ->
             {new_game, output} = Game.command(game, command)
             IO.puts(output)
