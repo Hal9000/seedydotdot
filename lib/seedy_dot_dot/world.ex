@@ -61,7 +61,6 @@ defmodule SeedyDotDot.World do
   end
 
   defp parse_start("", _rest, _world), do: {:error, "start requires a room ID"}
-
   defp parse_start(_room_id, _rest, %__MODULE__{start_room: start}) when not is_nil(start),
     do: {:error, "world has more than one start room"}
 
