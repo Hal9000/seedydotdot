@@ -21,9 +21,15 @@ defmodule SeedyDotDot.CLI do
 
       command ->
         case String.trim(command) |> String.downcase() do
-          "quit" -> :ok
-          "exit" -> :ok
-          "q" -> :ok
+          "quit" ->
+            :ok
+
+          "exit" ->
+            :ok
+
+          "q" ->
+            :ok
+
           _ ->
             {new_game, output} = Game.command(game, command)
             IO.puts(output)

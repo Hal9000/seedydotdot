@@ -30,7 +30,8 @@ defmodule SeedyDotDot.WorldTest do
     end
     """
 
-    assert {:error, ~s(room "lobby" has north exit to missing room "nowhere")} = World.parse(world)
+    assert {:error, ~s(room "lobby" has north exit to missing room "nowhere")} =
+             World.parse(world)
   end
 
   test "rejects duplicate room IDs" do

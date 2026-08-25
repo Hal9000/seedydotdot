@@ -61,6 +61,7 @@ defmodule SeedyDotDot.World do
   end
 
   defp parse_start("", _rest, _world), do: {:error, "start requires a room ID"}
+
   defp parse_start(_room_id, _rest, %__MODULE__{start_room: start}) when not is_nil(start),
     do: {:error, "world has more than one start room"}
 
@@ -74,7 +75,7 @@ defmodule SeedyDotDot.World do
 
   defp parse_room(room_id, lines, world) do
     with {:ok, room, rest} <- parse_room_body(lines, %{id: room_id, prose: [], exits: %{}}) do
-      room = %{room | description: room.prose |> Enum.reverse() |> Enum.join("\n")}
+      room = Map.put(room, :description, room.prose |> Enum.reverse() |> Enum.join("\n"))
       parse_lines(rest, %{world | rooms: Map.put(world.rooms, room_id, Map.delete(room, :prose))})
     end
   end
@@ -100,7 +101,9 @@ defmodule SeedyDotDot.World do
 
   defp validate_exits(rooms) do
     Enum.reduce_while(rooms, :ok, fn {room_id, room}, :ok ->
-      case Enum.find(room.exits, fn {_direction, destination} -> not Map.has_key?(rooms, destination) end) do
+      case Enum.find(room.exits, fn {_direction, destination} ->
+             not Map.has_key?(rooms, destination)
+           end) do
         nil ->
           {:cont, :ok}
 
