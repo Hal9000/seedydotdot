@@ -41,7 +41,9 @@ defmodule SeedyDotDot.GameTest do
     assert {moved_game, "  The corridor."} = Game.command(game, "n")
     assert moved_game.current_room == "corridor"
 
-    assert {returned_game, "  The lobby."} = Game.command(moved_game, "south")
+    assert {returned_game, "  The lobby.\n\nYou see here: brass key, statue."} =
+             Game.command(moved_game, "south")
+
     assert returned_game.current_room == "lobby"
   end
 
@@ -50,7 +52,7 @@ defmodule SeedyDotDot.GameTest do
   end
 
   test "unknown commands retain the current room", %{game: game} do
-    assert {^game, "I don't understand that."} = Game.command(game, "take ruby")
+    assert {^game, "I don't understand that."} = Game.command(game, "dance")
   end
 
   test "taking and dropping an object updates inventory and room contents", %{game: game} do
