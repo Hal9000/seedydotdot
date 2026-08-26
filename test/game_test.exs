@@ -161,7 +161,7 @@ defmodule SeedyDotDot.GameTest do
     assert {hall_game, "  The hall."} = Game.command(game, "north")
     refute MapSet.member?(hall_game.fired_events, "hall_greeting")
 
-    assert {lobby_game, ""} = Game.command(hall_game, "south")
+    assert {lobby_game, "\n\nYou see here: key."} = Game.command(hall_game, "south")
     assert {carrying_game, "Taken."} = Game.command(lobby_game, "take key")
 
     assert {greeted_game, "  The hall.\n\nThe hall coughs politely."} =
