@@ -3,15 +3,16 @@ defmodule SeedyDotDot.Game do
   The mutable state and command interface for one game session.
   """
 
-  alias SeedyDotDot.World
+  alias SeedyDotDot.{Text, World}
 
-  defstruct [:world, :current_room, object_locations: %{}, facts: MapSet.new()]
+  defstruct [:world, :current_room, object_locations: %{}, facts: MapSet.new(), choose: nil]
 
   @type t :: %__MODULE__{
           world: World.t(),
           current_room: String.t(),
           object_locations: %{String.t() => String.t() | :inventory},
-          facts: MapSet.t(String.t())
+          facts: MapSet.t(String.t()),
+          choose: ([String.t()] -> String.t())
         }
 
   @directions %{
@@ -26,14 +27,18 @@ defmodule SeedyDotDot.Game do
   }
 
   @spec new(World.t()) :: t()
-  def new(%World{} = world) do
+  def new(%World{} = world), do: new(world, [])
+
+  @spec new(World.t(), keyword()) :: t()
+  def new(%World{} = world, options) do
     object_locations = Map.new(world.objects, fn {id, object} -> {id, object.location} end)
 
     %__MODULE__{
       world: world,
       current_room: world.start_room,
       object_locations: object_locations,
-      facts: world.facts
+      facts: world.facts,
+      choose: Keyword.get(options, :choose, &choose_random/1)
     }
   end
 
@@ -98,7 +103,7 @@ defmodule SeedyDotDot.Game do
     {new_game, output} =
       Enum.reduce(effects, {game, []}, fn
         %{type: :say, text: text}, {game, output} ->
-          {game, output ++ [text]}
+          {game, output ++ [render(game, text)]}
 
         %{type: :set, fact: fact}, {game, output} ->
           {%{game | facts: MapSet.put(game.facts, fact)}, output}
@@ -137,7 +142,7 @@ defmodule SeedyDotDot.Game do
   defp examine(game, noun) do
     with {:ok, object_id, object} <- find_object(game, noun),
          :ok <- accessible(game, object_id) do
-      {game, object.description}
+      {game, render(game, object.description)}
     else
       :not_found -> {game, "You don't see that here."}
       :not_accessible -> {game, "You don't see that here."}
@@ -152,7 +157,7 @@ defmodule SeedyDotDot.Game do
   end
 
   defp describe_current_room(game) do
-    description = room(game).description
+    description = render(game, room(game).description)
 
     case object_names_at(game, game.current_room) do
       [] -> description
@@ -194,6 +199,11 @@ defmodule SeedyDotDot.Game do
     |> Enum.map(fn {id, _location} -> game.world.objects[id].name end)
     |> Enum.sort()
   end
+
+  defp render(game, text), do: Text.render(text, game, game.choose)
+
+  defp choose_random(alternatives),
+    do: Enum.at(alternatives, :rand.uniform(length(alternatives)) - 1)
 
   defp room(game), do: Map.fetch!(game.world.rooms, game.current_room)
 end
