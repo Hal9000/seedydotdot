@@ -170,6 +170,7 @@ defmodule SeedyDotDot.GameTest do
     assert MapSet.member?(greeted_game.fired_events, "hall_greeting")
 
     assert {returned_game, ""} = Game.command(greeted_game, "south")
-    assert {^returned_game, "  The hall."} = Game.command(returned_game, "north")
+    assert {again_game, "  The hall."} = Game.command(returned_game, "north")
+    assert MapSet.member?(again_game.fired_events, "hall_greeting")
   end
 end
