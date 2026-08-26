@@ -5,13 +5,21 @@ defmodule SeedyDotDot.Game do
 
   alias SeedyDotDot.{Text, World}
 
-  defstruct [:world, :current_room, object_locations: %{}, facts: MapSet.new(), choose: nil]
+  defstruct [
+    :world,
+    :current_room,
+    object_locations: %{},
+    facts: MapSet.new(),
+    fired_events: MapSet.new(),
+    choose: nil
+  ]
 
   @type t :: %__MODULE__{
           world: World.t(),
           current_room: String.t(),
           object_locations: %{String.t() => String.t() | :inventory},
           facts: MapSet.t(String.t()),
+          fired_events: MapSet.t(String.t()),
           choose: ([String.t()] -> String.t())
         }
 
@@ -38,6 +46,7 @@ defmodule SeedyDotDot.Game do
       current_room: world.start_room,
       object_locations: object_locations,
       facts: world.facts,
+      fired_events: MapSet.new(),
       choose: Keyword.get(options, :choose, &choose_random/1)
     }
   end
@@ -75,7 +84,8 @@ defmodule SeedyDotDot.Game do
       {:ok, %{destination: destination, condition: condition}} ->
         if is_nil(condition) or true?(game, condition) do
           moved_game = %{game | current_room: destination}
-          {moved_game, describe_current_room(moved_game)}
+          {event_game, event_output} = run_events(moved_game, {:enter, destination})
+          {event_game, join_output(describe_current_room(event_game), event_output)}
         else
           {game, "You can't go that way."}
         end
@@ -88,7 +98,7 @@ defmodule SeedyDotDot.Game do
   defp run_action(game, command) do
     case Map.fetch(game.world.actions, command) do
       {:ok, action} ->
-        if Enum.all?(action.requirements, &true?(game, &1)) do
+        if requirements_met?(game, action.requirements) do
           apply_effects(game, action.effects)
         else
           {game, "That doesn't seem to work."}
@@ -98,6 +108,32 @@ defmodule SeedyDotDot.Game do
         {game, "I don't understand that."}
     end
   end
+
+  defp run_events(game, trigger) do
+    {game, output} =
+      Enum.reduce(game.world.event_order, {game, []}, fn event_id, {game, output} ->
+        event = Map.fetch!(game.world.events, event_id)
+
+        if event.trigger == trigger and
+             (not event.once or not MapSet.member?(game.fired_events, event_id)) and
+             requirements_met?(game, event.requirements) do
+          {event_game, event_output} = apply_effects(game, event.effects)
+
+          event_game =
+            if event.once,
+              do: %{event_game | fired_events: MapSet.put(event_game.fired_events, event_id)},
+              else: event_game
+
+          {event_game, output ++ [event_output]}
+        else
+          {game, output}
+        end
+      end)
+
+    {game, output |> Enum.reject(&(&1 == "")) |> Enum.join("\n")}
+  end
+
+  defp requirements_met?(game, requirements), do: Enum.all?(requirements, &true?(game, &1))
 
   defp apply_effects(game, effects) do
     {new_game, output} =
@@ -204,6 +240,9 @@ defmodule SeedyDotDot.Game do
 
   defp choose_random(alternatives),
     do: Enum.at(alternatives, :rand.uniform(length(alternatives)) - 1)
+
+  defp join_output(primary, ""), do: primary
+  defp join_output(primary, extra), do: "#{primary}\n\n#{extra}"
 
   defp room(game), do: Map.fetch!(game.world.rooms, game.current_room)
 end

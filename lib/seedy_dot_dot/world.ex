@@ -3,7 +3,15 @@ defmodule SeedyDotDot.World do
   Immutable world definitions loaded from the SeedyDotDot DSL.
   """
 
-  defstruct [:start_room, rooms: %{}, objects: %{}, facts: MapSet.new(), actions: %{}]
+  defstruct [
+    :start_room,
+    rooms: %{},
+    objects: %{},
+    facts: MapSet.new(),
+    actions: %{},
+    events: %{},
+    event_order: []
+  ]
 
   @type exit :: %{destination: String.t(), condition: String.t() | nil}
 
@@ -29,12 +37,22 @@ defmodule SeedyDotDot.World do
 
   @type effect :: %{type: :say, text: String.t()} | %{type: :set | :clear, fact: String.t()}
 
+  @type event :: %{
+          id: String.t(),
+          trigger: {:enter, String.t()},
+          once: boolean(),
+          requirements: [String.t()],
+          effects: [effect()]
+        }
+
   @type t :: %__MODULE__{
           start_room: String.t(),
           rooms: %{String.t() => room()},
           objects: %{String.t() => object()},
           facts: MapSet.t(String.t()),
-          actions: %{String.t() => action()}
+          actions: %{String.t() => action()},
+          events: %{String.t() => event()},
+          event_order: [String.t()]
         }
 
   @directions ~w(north south east west)
@@ -64,7 +82,8 @@ defmodule SeedyDotDot.World do
         rooms: rooms,
         objects: objects,
         facts: facts,
-        actions: actions
+        actions: actions,
+        events: events
       }) do
     cond do
       not Map.has_key?(rooms, start_room) ->
@@ -73,7 +92,9 @@ defmodule SeedyDotDot.World do
       true ->
         with :ok <- validate_exits(rooms, facts, objects),
              :ok <- validate_objects(objects, rooms) do
-          validate_actions(actions, facts, objects)
+          with :ok <- validate_actions(actions, facts, objects) do
+            validate_events(events, rooms, facts, objects)
+          end
         end
     end
   end
@@ -101,6 +122,9 @@ defmodule SeedyDotDot.World do
 
       "action " <> command ->
         parse_action(command, rest, world)
+
+      "event " <> event_id ->
+        parse_event(event_id, rest, world)
 
       directive ->
         {:error, "unexpected directive: #{inspect(directive)}"}
@@ -163,6 +187,58 @@ defmodule SeedyDotDot.World do
         {:error, "unexpected action directive: #{inspect(directive)}"}
     end
   end
+
+  defp parse_event("", _rest, _world), do: {:error, "event requires an ID"}
+
+  defp parse_event(event_id, _rest, %__MODULE__{events: events})
+       when is_map_key(events, event_id),
+       do: {:error, "event #{inspect(event_id)} is defined more than once"}
+
+  defp parse_event(event_id, lines, world) do
+    event = %{id: event_id, trigger: nil, once: false, requirements: [], effects: []}
+
+    with {:ok, event, rest} <- parse_event_body(lines, event),
+         :ok <- validate_event_fields(event) do
+      parse_lines(rest, %{
+        world
+        | events: Map.put(world.events, event_id, event),
+          event_order: world.event_order ++ [event_id]
+      })
+    end
+  end
+
+  defp parse_event_body([], _event), do: {:error, "event is missing end"}
+  defp parse_event_body(["end" | rest], event), do: {:ok, event, rest}
+
+  defp parse_event_body([line | rest], event) do
+    case String.trim(line) do
+      "on enter " <> room_id when room_id != "" ->
+        parse_event_body(rest, %{event | trigger: {:enter, room_id}})
+
+      "once" ->
+        parse_event_body(rest, %{event | once: true})
+
+      "require " <> fact when fact != "" ->
+        parse_event_body(rest, %{event | requirements: event.requirements ++ [fact]})
+
+      "say " <> text when text != "" ->
+        parse_event_body(rest, %{event | effects: event.effects ++ [%{type: :say, text: text}]})
+
+      "set " <> fact when fact != "" ->
+        parse_event_body(rest, %{event | effects: event.effects ++ [%{type: :set, fact: fact}]})
+
+      "clear " <> fact when fact != "" ->
+        parse_event_body(rest, %{event | effects: event.effects ++ [%{type: :clear, fact: fact}]})
+
+      directive ->
+        {:error, "unexpected event directive: #{inspect(directive)}"}
+    end
+  end
+
+  defp validate_event_fields(%{id: id, trigger: nil}),
+    do: {:error, "event #{inspect(id)} has no trigger"}
+
+  defp validate_event_fields(_event), do: :ok
 
   defp parse_room("", _rest, _world), do: {:error, "room requires an ID"}
 
@@ -329,6 +405,28 @@ defmodule SeedyDotDot.World do
       %{fact: fact} ->
         {:error, "action #{inspect(command)} modifies unknown stored fact #{inspect(fact)}"}
     end
+  end
+
+  defp validate_events(events, rooms, facts, objects) do
+    Enum.reduce_while(events, :ok, fn {event_id, event}, :ok ->
+      case event.trigger do
+        {:enter, room_id} when not is_map_key(rooms, room_id) ->
+          {:halt, {:error, "event #{inspect(event_id)} enters missing room #{inspect(room_id)}"}}
+
+        {:enter, _room_id} ->
+          case Enum.find(event.requirements, &(not valid_condition?(&1, facts, objects))) do
+            nil ->
+              case validate_action_effects(event_id, event.effects, facts) do
+                :ok -> {:cont, :ok}
+                error -> {:halt, error}
+              end
+
+            fact ->
+              {:halt,
+               {:error, "event #{inspect(event_id)} has unknown requirement #{inspect(fact)}"}}
+          end
+      end
+    end)
   end
 
   defp validate_objects(objects, rooms) do

@@ -130,4 +130,46 @@ defmodule SeedyDotDot.GameTest do
     assert {reset_game, "The machine starts."} = Game.command(stopped_game, "reset machine")
     assert Game.true?(reset_game, "machine.active")
   end
+
+  test "enter events fire once after their requirements are met" do
+    {:ok, world} =
+      World.parse("""
+      start lobby
+      room lobby
+        north hall
+      end
+      room hall
+        The hall.
+        south lobby
+      end
+      object key
+        name key
+        description A key.
+        at lobby
+        portable
+      end
+      event hall_greeting
+        on enter hall
+        once
+        require carrying.key
+        say The hall coughs politely.
+      end
+      """)
+
+    game = Game.new(world)
+
+    assert {hall_game, "  The hall."} = Game.command(game, "north")
+    refute MapSet.member?(hall_game.fired_events, "hall_greeting")
+
+    assert {lobby_game, ""} = Game.command(hall_game, "south")
+    assert {carrying_game, "Taken."} = Game.command(lobby_game, "take key")
+
+    assert {greeted_game, "  The hall.\n\nThe hall coughs politely."} =
+             Game.command(carrying_game, "north")
+
+    assert MapSet.member?(greeted_game.fired_events, "hall_greeting")
+
+    assert {returned_game, ""} = Game.command(greeted_game, "south")
+    assert {^returned_game, "  The hall."} = Game.command(returned_game, "north")
+  end
 end

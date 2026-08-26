@@ -53,3 +53,9 @@ action use ruby on console
   say The ruby fits the socket. Somewhere, a machine sounds less dormant.
   clear console.dormant
 end
+
+event segvault_arrival
+  on enter segvault
+  once
+  say A distant pager chirps. The Segvault pretends not to notice.
+end
