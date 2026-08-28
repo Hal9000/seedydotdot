@@ -1,4 +1,5 @@
 start lobby
+fact console.dormant
 
 room lobby
   You are in the neglected lobby of what appears to have once
@@ -18,7 +19,7 @@ room corridor
 end
 
 room ruby_room
-  Everything here is slightly too elegant. A small red gemstone
+  Everything here is {slightly too elegant|a little too polished}. A small red gemstone
   rests on a pedestal.
   The corridor is west. A dubious staircase leads north.
   west corridor
@@ -28,6 +29,7 @@ end
 room segvault
   You stand before THE SEGVAULT. It hums with the smug certainty
   of a memory error that has not happened yet.
+  {?console.dormant:A black console has a suspiciously ruby-shaped socket.|The console now glows with a ruby-red certainty.}
   The staircase is south.
   south ruby_room
 end
@@ -44,4 +46,16 @@ object pedestal
   description The pedestal is far too elegant to be portable.
   at ruby_room
   fixed
+end
+
+action use ruby on console
+  require carrying.ruby
+  say The ruby fits the socket. Somewhere, a machine sounds less dormant.
+  clear console.dormant
+end
+
+event segvault_arrival
+  on enter segvault
+  once
+  say A distant pager chirps. The Segvault pretends not to notice.
 end

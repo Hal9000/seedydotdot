@@ -21,6 +21,16 @@ defmodule SeedyDotDot.WorldTest do
       at lobby
       portable
     end
+    action unlock corridor
+      require carrying.key
+      say The key turns.
+      clear door.open
+    end
+    event corridor_greeting
+      on enter corridor
+      once
+      say The corridor coughs politely.
+    end
     """
 
     assert {:ok, parsed} = World.parse(world)
@@ -32,6 +42,16 @@ defmodule SeedyDotDot.WorldTest do
            }
 
     assert parsed.facts == MapSet.new(["door.open"])
+
+    assert parsed.actions["unlock corridor"] == %{
+             command: "unlock corridor",
+             requirements: ["carrying.key"],
+             effects: [%{type: :say, text: "The key turns."}, %{type: :clear, fact: "door.open"}]
+           }
+
+    assert parsed.events["corridor_greeting"].trigger == {:enter, "corridor"}
+    assert parsed.events["corridor_greeting"].once
+    assert parsed.event_order == ["corridor_greeting"]
 
     assert parsed.objects["key"] == %{
              id: "key",
@@ -94,5 +114,32 @@ defmodule SeedyDotDot.WorldTest do
 
     assert {:error, ~s(room "lobby" has north exit with unknown fact "door.open")} =
              World.parse(world)
+  end
+
+  test "rejects an action that modifies an unknown stored fact" do
+    world = """
+    start lobby
+    room lobby
+    end
+    action break something
+      clear machine.active
+    end
+    """
+
+    assert {:error, ~s(action "break something" modifies unknown stored fact "machine.active")} =
+             World.parse(world)
+  end
+
+  test "rejects an event that enters a missing room" do
+    world = """
+    start lobby
+    room lobby
+    end
+    event arrival
+      on enter nowhere
+    end
+    """
+
+    assert {:error, ~s(event "arrival" enters missing room "nowhere")} = World.parse(world)
   end
 end

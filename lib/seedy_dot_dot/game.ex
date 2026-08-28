@@ -3,15 +3,24 @@ defmodule SeedyDotDot.Game do
   The mutable state and command interface for one game session.
   """
 
-  alias SeedyDotDot.World
+  alias SeedyDotDot.{Text, World}
 
-  defstruct [:world, :current_room, object_locations: %{}, facts: MapSet.new()]
+  defstruct [
+    :world,
+    :current_room,
+    object_locations: %{},
+    facts: MapSet.new(),
+    fired_events: MapSet.new(),
+    choose: nil
+  ]
 
   @type t :: %__MODULE__{
           world: World.t(),
           current_room: String.t(),
           object_locations: %{String.t() => String.t() | :inventory},
-          facts: MapSet.t(String.t())
+          facts: MapSet.t(String.t()),
+          fired_events: MapSet.t(String.t()),
+          choose: ([String.t()] -> String.t())
         }
 
   @directions %{
@@ -26,14 +35,19 @@ defmodule SeedyDotDot.Game do
   }
 
   @spec new(World.t()) :: t()
-  def new(%World{} = world) do
+  def new(%World{} = world), do: new(world, [])
+
+  @spec new(World.t(), keyword()) :: t()
+  def new(%World{} = world, options) do
     object_locations = Map.new(world.objects, fn {id, object} -> {id, object.location} end)
 
     %__MODULE__{
       world: world,
       current_room: world.start_room,
       object_locations: object_locations,
-      facts: world.facts
+      facts: world.facts,
+      fired_events: MapSet.new(),
+      choose: Keyword.get(options, :choose, &choose_random/1)
     }
   end
 
@@ -59,7 +73,7 @@ defmodule SeedyDotDot.Game do
       "look at " <> noun -> examine(game, noun)
       "x " <> noun -> examine(game, noun)
       direction when is_map_key(@directions, direction) -> move(game, @directions[direction])
-      _ -> {game, "I don't understand that."}
+      action -> run_action(game, action)
     end
   end
 
@@ -70,7 +84,8 @@ defmodule SeedyDotDot.Game do
       {:ok, %{destination: destination, condition: condition}} ->
         if is_nil(condition) or true?(game, condition) do
           moved_game = %{game | current_room: destination}
-          {moved_game, describe_current_room(moved_game)}
+          {event_game, event_output} = run_events(moved_game, {:enter, destination})
+          {event_game, join_output(describe_current_room(event_game), event_output)}
         else
           {game, "You can't go that way."}
         end
@@ -78,6 +93,62 @@ defmodule SeedyDotDot.Game do
       :error ->
         {game, "You can't go that way."}
     end
+  end
+
+  defp run_action(game, command) do
+    case Map.fetch(game.world.actions, command) do
+      {:ok, action} ->
+        if requirements_met?(game, action.requirements) do
+          apply_effects(game, action.effects)
+        else
+          {game, "That doesn't seem to work."}
+        end
+
+      :error ->
+        {game, "I don't understand that."}
+    end
+  end
+
+  defp run_events(game, trigger) do
+    {game, output} =
+      Enum.reduce(game.world.event_order, {game, []}, fn event_id, {game, output} ->
+        event = Map.fetch!(game.world.events, event_id)
+
+        if event.trigger == trigger and
+             (not event.once or not MapSet.member?(game.fired_events, event_id)) and
+             requirements_met?(game, event.requirements) do
+          {event_game, event_output} = apply_effects(game, event.effects)
+
+          event_game =
+            if event.once,
+              do: %{event_game | fired_events: MapSet.put(event_game.fired_events, event_id)},
+              else: event_game
+
+          {event_game, output ++ [event_output]}
+        else
+          {game, output}
+        end
+      end)
+
+    {game, output |> Enum.reject(&(&1 == "")) |> Enum.join("\n")}
+  end
+
+  defp requirements_met?(game, requirements), do: Enum.all?(requirements, &true?(game, &1))
+
+  defp apply_effects(game, effects) do
+    {new_game, output} =
+      Enum.reduce(effects, {game, []}, fn
+        %{type: :say, text: text}, {game, output} ->
+          {game, output ++ [render(game, text)]}
+
+        %{type: :set, fact: fact}, {game, output} ->
+          {%{game | facts: MapSet.put(game.facts, fact)}, output}
+
+        %{type: :clear, fact: fact}, {game, output} ->
+          {%{game | facts: MapSet.delete(game.facts, fact)}, output}
+      end)
+
+    {new_game, Enum.join(output, "\n")}
   end
 
   defp take(game, noun) do
@@ -107,7 +178,7 @@ defmodule SeedyDotDot.Game do
   defp examine(game, noun) do
     with {:ok, object_id, object} <- find_object(game, noun),
          :ok <- accessible(game, object_id) do
-      {game, object.description}
+      {game, render(game, object.description)}
     else
       :not_found -> {game, "You don't see that here."}
       :not_accessible -> {game, "You don't see that here."}
@@ -122,7 +193,7 @@ defmodule SeedyDotDot.Game do
   end
 
   defp describe_current_room(game) do
-    description = room(game).description
+    description = render(game, room(game).description)
 
     case object_names_at(game, game.current_room) do
       [] -> description
@@ -164,6 +235,14 @@ defmodule SeedyDotDot.Game do
     |> Enum.map(fn {id, _location} -> game.world.objects[id].name end)
     |> Enum.sort()
   end
+
+  defp render(game, text), do: Text.render(text, game, game.choose)
+
+  defp choose_random(alternatives),
+    do: Enum.at(alternatives, :rand.uniform(length(alternatives)) - 1)
+
+  defp join_output(primary, ""), do: primary
+  defp join_output(primary, extra), do: "#{primary}\n\n#{extra}"
 
   defp room(game), do: Map.fetch!(game.world.rooms, game.current_room)
 end
