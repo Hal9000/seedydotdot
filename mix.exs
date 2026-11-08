@@ -5,11 +5,19 @@ defmodule SeedyDotDot.MixProject do
     [
       app: :seedy_dot_dot,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
-      deps: []
+      deps: [
+        {:bandit, "~> 1.14"},
+        {:plug, "~> 1.20"}
+      ]
     ]
   end
 
-  def application, do: []
+  def application do
+    [
+      extra_applications: [:logger],
+      mod: {SeedyDotDot.Application, []}
+    ]
+  end
 end
