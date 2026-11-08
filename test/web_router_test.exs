@@ -1,7 +1,8 @@
 defmodule SeedyDotDot.Web.RouterTest do
   use ExUnit.Case, async: false
 
-  use Plug.Test
+  import Plug.Conn
+  import Plug.Test
 
   alias SeedyDotDot.{GameServer, Web.Router}
 

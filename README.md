@@ -1,6 +1,6 @@
 # SeedyDotDot
 
-A small, data-driven Elixir text adventure.
+A small, data-driven Elixir text adventure. It requires Elixir 1.18 or later.
 
 ## Run the CLI
 
