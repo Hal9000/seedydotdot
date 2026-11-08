@@ -173,4 +173,37 @@ defmodule SeedyDotDot.GameTest do
     assert {again_game, "  The hall."} = Game.command(returned_game, "north")
     assert MapSet.member?(again_game.fired_events, "hall_greeting")
   end
+
+  test "winning prevents ordinary commands until restart" do
+    {:ok, world} =
+      World.parse("""
+      start room
+      room room
+        A room.
+      end
+      object door
+        name door
+        description A door.
+        at room
+        fixed
+      end
+      action leave
+        require here.door
+        say You leave.
+        win
+      end
+      """)
+
+    game = Game.new(world)
+    assert {won_game, "You leave."} = Game.command(game, "leave")
+    assert won_game.status == :won
+
+    assert {^won_game, "The game is over. Type restart to play again."} =
+             Game.command(won_game, "look")
+
+    assert {restarted_game, "A new game begins.\n\n  A room.\n\nYou see here: door."} =
+             Game.command(won_game, "restart")
+
+    assert restarted_game.status == :playing
+  end
 end

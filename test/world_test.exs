@@ -7,6 +7,7 @@ defmodule SeedyDotDot.WorldTest do
     world = """
     start lobby
     fact door.open
+    fact escape.open false
     room lobby
       Welcome to the lobby.
       north corridor if door.open
@@ -41,7 +42,7 @@ defmodule SeedyDotDot.WorldTest do
              "north" => %{destination: "corridor", condition: "door.open"}
            }
 
-    assert parsed.facts == MapSet.new(["door.open"])
+    assert parsed.facts == %{"door.open" => true, "escape.open" => false}
 
     assert parsed.actions["unlock corridor"] == %{
              command: "unlock corridor",

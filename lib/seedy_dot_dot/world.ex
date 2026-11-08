@@ -7,7 +7,7 @@ defmodule SeedyDotDot.World do
     :start_room,
     rooms: %{},
     objects: %{},
-    facts: MapSet.new(),
+    facts: %{},
     actions: %{},
     events: %{},
     event_order: []
@@ -35,7 +35,10 @@ defmodule SeedyDotDot.World do
           effects: [effect()]
         }
 
-  @type effect :: %{type: :say, text: String.t()} | %{type: :set | :clear, fact: String.t()}
+  @type effect ::
+          %{type: :say, text: String.t()}
+          | %{type: :set | :clear, fact: String.t()}
+          | %{type: :win}
 
   @type event :: %{
           id: String.t(),
@@ -49,7 +52,7 @@ defmodule SeedyDotDot.World do
           start_room: String.t(),
           rooms: %{String.t() => room()},
           objects: %{String.t() => object()},
-          facts: MapSet.t(String.t()),
+          facts: %{String.t() => boolean()},
           actions: %{String.t() => action()},
           events: %{String.t() => event()},
           event_order: [String.t()]
@@ -141,11 +144,22 @@ defmodule SeedyDotDot.World do
 
   defp parse_fact("", _rest, _world), do: {:error, "fact requires a name"}
 
-  defp parse_fact(fact, rest, %__MODULE__{facts: facts} = world) do
-    if MapSet.member?(facts, fact) do
-      {:error, "fact #{inspect(fact)} is defined more than once"}
-    else
-      parse_lines(rest, %{world | facts: MapSet.put(facts, fact)})
+  defp parse_fact(definition, rest, %__MODULE__{facts: facts} = world) do
+    with {:ok, fact, value} <- parse_fact_definition(definition) do
+      if Map.has_key?(facts, fact) do
+        {:error, "fact #{inspect(fact)} is defined more than once"}
+      else
+        parse_lines(rest, %{world | facts: Map.put(facts, fact, value)})
+      end
+    end
+  end
+
+  defp parse_fact_definition(definition) do
+    case String.split(definition, ~r/\s+/, parts: 2) do
+      [fact] when fact != "" -> {:ok, fact, true}
+      [fact, "true"] when fact != "" -> {:ok, fact, true}
+      [fact, "false"] when fact != "" -> {:ok, fact, false}
+      _ -> {:error, "fact requires an optional true or false initial value"}
     end
   end
 
@@ -182,6 +196,9 @@ defmodule SeedyDotDot.World do
           action
           | effects: action.effects ++ [%{type: :clear, fact: fact}]
         })
+
+      "win" ->
+        parse_action_body(rest, %{action | effects: action.effects ++ [%{type: :win}]})
 
       directive ->
         {:error, "unexpected action directive: #{inspect(directive)}"}
@@ -229,6 +246,9 @@ defmodule SeedyDotDot.World do
 
       "clear " <> fact when fact != "" ->
         parse_event_body(rest, %{event | effects: event.effects ++ [%{type: :clear, fact: fact}]})
+
+      "win" ->
+        parse_event_body(rest, %{event | effects: event.effects ++ [%{type: :win}]})
 
       directive ->
         {:error, "unexpected event directive: #{inspect(directive)}"}
@@ -374,7 +394,7 @@ defmodule SeedyDotDot.World do
   defp valid_condition?("here." <> object_id, _facts, objects),
     do: Map.has_key?(objects, object_id)
 
-  defp valid_condition?(fact, facts, _objects), do: MapSet.member?(facts, fact)
+  defp valid_condition?(fact, facts, _objects), do: Map.has_key?(facts, fact)
 
   defp validate_actions(actions, facts, objects) do
     Enum.reduce_while(actions, :ok, fn {command, action}, :ok ->
@@ -394,7 +414,7 @@ defmodule SeedyDotDot.World do
   defp validate_action_effects(command, effects, facts) do
     case Enum.find(effects, fn
            %{type: type, fact: fact} when type in [:set, :clear] ->
-             not MapSet.member?(facts, fact)
+             not Map.has_key?(facts, fact)
 
            _ ->
              false

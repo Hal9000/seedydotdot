@@ -9,8 +9,9 @@ defmodule SeedyDotDot.Game do
     :world,
     :current_room,
     object_locations: %{},
-    facts: MapSet.new(),
+    facts: %{},
     fired_events: MapSet.new(),
+    status: :playing,
     choose: nil
   ]
 
@@ -18,8 +19,9 @@ defmodule SeedyDotDot.Game do
           world: World.t(),
           current_room: String.t(),
           object_locations: %{String.t() => String.t() | :inventory},
-          facts: MapSet.t(String.t()),
+          facts: %{String.t() => boolean()},
           fired_events: MapSet.t(String.t()),
+          status: :playing | :won,
           choose: ([String.t()] -> String.t())
         }
 
@@ -47,6 +49,7 @@ defmodule SeedyDotDot.Game do
       object_locations: object_locations,
       facts: world.facts,
       fired_events: MapSet.new(),
+      status: :playing,
       choose: Keyword.get(options, :choose, &choose_random/1)
     }
   end
@@ -58,22 +61,51 @@ defmodule SeedyDotDot.Game do
   def true?(%__MODULE__{} = game, "here." <> object_id),
     do: game.object_locations[object_id] == game.current_room
 
-  def true?(%__MODULE__{} = game, fact), do: MapSet.member?(game.facts, fact)
+  def true?(%__MODULE__{} = game, fact), do: Map.get(game.facts, fact, false)
 
   @spec command(t(), String.t()) :: {t(), String.t()}
   def command(%__MODULE__{} = game, command) when is_binary(command) do
-    case command |> String.trim() |> String.downcase() do
-      "look" -> {game, describe_current_room(game)}
-      "inventory" -> {game, inventory(game)}
-      "i" -> {game, inventory(game)}
-      "take " <> noun -> take(game, noun)
-      "get " <> noun -> take(game, noun)
-      "drop " <> noun -> drop(game, noun)
-      "examine " <> noun -> examine(game, noun)
-      "look at " <> noun -> examine(game, noun)
-      "x " <> noun -> examine(game, noun)
-      direction when is_map_key(@directions, direction) -> move(game, @directions[direction])
-      action -> run_action(game, action)
+    normalized_command = command |> String.trim() |> String.downcase()
+
+    case normalized_command do
+      "restart" ->
+        restart(game)
+
+      _ when game.status != :playing ->
+        {game, "The game is over. Type restart to play again."}
+
+      "look" ->
+        {game, describe_current_room(game)}
+
+      "inventory" ->
+        {game, inventory(game)}
+
+      "i" ->
+        {game, inventory(game)}
+
+      "take " <> noun ->
+        take(game, noun)
+
+      "get " <> noun ->
+        take(game, noun)
+
+      "drop " <> noun ->
+        drop(game, noun)
+
+      "examine " <> noun ->
+        examine(game, noun)
+
+      "look at " <> noun ->
+        examine(game, noun)
+
+      "x " <> noun ->
+        examine(game, noun)
+
+      direction when is_map_key(@directions, direction) ->
+        move(game, @directions[direction])
+
+      action ->
+        run_action(game, action)
     end
   end
 
@@ -142,10 +174,13 @@ defmodule SeedyDotDot.Game do
           {game, output ++ [render(game, text)]}
 
         %{type: :set, fact: fact}, {game, output} ->
-          {%{game | facts: MapSet.put(game.facts, fact)}, output}
+          {%{game | facts: Map.put(game.facts, fact, true)}, output}
 
         %{type: :clear, fact: fact}, {game, output} ->
-          {%{game | facts: MapSet.delete(game.facts, fact)}, output}
+          {%{game | facts: Map.put(game.facts, fact, false)}, output}
+
+        %{type: :win}, {game, output} ->
+          {%{game | status: :won}, output}
       end)
 
     {new_game, Enum.join(output, "\n")}
@@ -243,6 +278,11 @@ defmodule SeedyDotDot.Game do
 
   defp join_output(primary, ""), do: primary
   defp join_output(primary, extra), do: "#{primary}\n\n#{extra}"
+
+  defp restart(game) do
+    new_game = new(game.world, choose: game.choose)
+    {new_game, "A new game begins.\n\n#{describe_current_room(new_game)}"}
+  end
 
   defp room(game), do: Map.fetch!(game.world.rooms, game.current_room)
 end
