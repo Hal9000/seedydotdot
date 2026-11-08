@@ -33,6 +33,7 @@ defmodule SeedyDotDot.TextTest do
     assert {^silent_game, "  The machine is quiet."} = Game.command(silent_game, "look")
   end
 
+  @tag :demo_dynamic_text
   test "renders dynamic action output after effects are applied" do
     game =
       game_with("""

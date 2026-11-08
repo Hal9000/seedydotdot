@@ -1,0 +1,11 @@
+diff --git a/lib/seedy_dot_dot/game.ex b/lib/seedy_dot_dot/game.ex
+--- a/lib/seedy_dot_dot/game.ex
++++ b/lib/seedy_dot_dot/game.ex
+@@ -113,6 +113,6 @@ defmodule SeedyDotDot.Game do
+ 
+     case Map.fetch(current_room.exits, direction) do
+       {:ok, %{destination: destination, condition: condition}} ->
+-        if is_nil(condition) or true?(game, condition) do
++        if is_nil(condition) or not true?(game, condition) do
+           moved_game = %{game | current_room: destination}
+           {event_game, event_output} = run_events(moved_game, {:enter, destination})

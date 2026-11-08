@@ -1,0 +1,15 @@
+diff --git a/lib/seedy_dot_dot/game.ex b/lib/seedy_dot_dot/game.ex
+--- a/lib/seedy_dot_dot/game.ex
++++ b/lib/seedy_dot_dot/game.ex
+@@ -170,9 +170,10 @@ defmodule SeedyDotDot.Game do
+   defp requirements_met?(game, requirements), do: Enum.all?(requirements, &true?(game, &1))
+ 
+   defp apply_effects(game, effects) do
++    original_game = game
+     {new_game, output} =
+       Enum.reduce(effects, {game, []}, fn
+         %{type: :say, text: text}, {game, output} ->
+-          {game, output ++ [render(game, text)]}
++          {game, output ++ [render(original_game, text)]}
+ 
+         %{type: :set, fact: fact}, {game, output} ->

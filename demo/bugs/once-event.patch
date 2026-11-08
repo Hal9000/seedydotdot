@@ -1,0 +1,10 @@
+diff --git a/lib/seedy_dot_dot/game.ex b/lib/seedy_dot_dot/game.ex
+--- a/lib/seedy_dot_dot/game.ex
++++ b/lib/seedy_dot_dot/game.ex
+@@ -149,5 +149,5 @@ defmodule SeedyDotDot.Game do
+ 
+         if event.trigger == trigger and
+-             (not event.once or not MapSet.member?(game.fired_events, event_id)) and
++             (not event.once or true) and
+              requirements_met?(game, event.requirements) do
+           {event_game, event_output} = apply_effects(game, event.effects)
