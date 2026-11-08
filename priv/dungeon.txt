@@ -1,5 +1,6 @@
 start lobby
 fact console.dormant
+fact escape.open false
 
 room lobby
   You are in the neglected lobby of what appears to have once
@@ -32,6 +33,13 @@ room segvault
   {?console.dormant:A black console has a suspiciously ruby-shaped socket.|The console now glows with a ruby-red certainty.}
   The staircase is south.
   south ruby_room
+  north escape if escape.open
+end
+
+room escape
+  Cold night air arrives with the confidence of a process that has
+  finally received SIGTERM. A fire door leads out of the department.
+  south segvault
 end
 
 object ruby
@@ -48,10 +56,24 @@ object pedestal
   fixed
 end
 
+object fire_door
+  name fire door
+  description The fire door has a reassuringly ordinary push bar.
+  at escape
+  fixed
+end
+
 action use ruby on console
   require carrying.ruby
   say The ruby fits the socket. Somewhere, a machine sounds less dormant.
   clear console.dormant
+  set escape.open
+end
+
+action leave through fire door
+  require here.fire_door
+  say You push through the fire door and escape before anyone can explain the Segvault.
+  win
 end
 
 event segvault_arrival
