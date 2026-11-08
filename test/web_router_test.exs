@@ -30,4 +30,16 @@ defmodule SeedyDotDot.Web.RouterTest do
     assert response.resp_body =~ "&gt; north"
     assert response.resp_body =~ "poorly illuminated corridor"
   end
+
+  test "returns command output for the progressive web interface" do
+    response =
+      conn(:post, "/command", "command=north")
+      |> put_req_header("accept", "text/plain")
+      |> put_req_header("content-type", "application/x-www-form-urlencoded")
+      |> Router.call([])
+
+    assert response.status == 200
+    assert get_resp_header(response, "content-type") == ["text/plain; charset=utf-8"]
+    assert response.resp_body =~ "poorly illuminated corridor"
+  end
 end
