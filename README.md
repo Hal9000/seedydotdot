@@ -2,7 +2,7 @@
 
 A small, data-driven Elixir text adventure.
 
-## Run Stage 0
+## Run the CLI
 
 With Elixir installed, start the terminal game from the repository root:
 
@@ -18,3 +18,14 @@ Run the test suite with:
 ```sh
 mix test
 ```
+
+## Run the web demo
+
+Start the single-user web demo:
+
+```sh
+mix seedy_dot_dot.web
+```
+
+Open `http://localhost:4000`. The page shows the transcript and provides one
+command field. Enter `restart` to begin again after winning.
