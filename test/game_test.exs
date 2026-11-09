@@ -106,7 +106,6 @@ defmodule SeedyDotDot.GameTest do
     refute Game.true?(taken_game, "here.key")
   end
 
-  @tag :demo_conditional_exit
   test "a conditional exit requires its fact", %{game: game} do
     assert {corridor_game, "  The corridor."} = Game.command(game, "north")
     assert {^corridor_game, "You can't go that way."} = Game.command(corridor_game, "north")
@@ -132,7 +131,6 @@ defmodule SeedyDotDot.GameTest do
     assert Game.true?(reset_game, "machine.active")
   end
 
-  @tag :demo_once_event
   test "enter events fire once after their requirements are met" do
     {:ok, world} =
       World.parse("""
@@ -176,7 +174,6 @@ defmodule SeedyDotDot.GameTest do
     assert MapSet.member?(again_game.fired_events, "hall_greeting")
   end
 
-  @tag :demo_inventory_location
   test "taking an object removes it from the room description", %{game: game} do
     assert {taken_game, "Taken."} = Game.command(game, "take key")
 

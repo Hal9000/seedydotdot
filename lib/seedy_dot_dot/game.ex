@@ -182,6 +182,12 @@ defmodule SeedyDotDot.Game do
         %{type: :bug, id: "box_of_bugs"}, _state ->
           raise "The Box of Bugs has escaped into the runtime."
 
+        %{type: :bug, id: "closet_of_runtime_exceptions"}, _state ->
+          raise "The Closet of Runtime Exceptions has opened from the inside."
+
+        %{type: :bug, id: "big_red_do_not_press_button"}, _state ->
+          raise "The Big Red Do Not Press Button has been pressed."
+
         %{type: :win}, {game, output} ->
           {%{game | status: :won}, output}
       end)

@@ -117,7 +117,6 @@ defmodule SeedyDotDot.WorldTest do
              World.parse(world)
   end
 
-  @tag :demo_validation
   test "rejects an action that modifies an unknown stored fact" do
     world = """
     start lobby
