@@ -179,6 +179,9 @@ defmodule SeedyDotDot.Game do
         %{type: :clear, fact: fact}, {game, output} ->
           {%{game | facts: Map.put(game.facts, fact, false)}, output}
 
+        %{type: :bug, id: "box_of_bugs"}, _state ->
+          raise "The Box of Bugs has escaped into the runtime."
+
         %{type: :win}, {game, output} ->
           {%{game | status: :won}, output}
       end)

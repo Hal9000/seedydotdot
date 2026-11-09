@@ -38,6 +38,7 @@ defmodule SeedyDotDot.World do
   @type effect ::
           %{type: :say, text: String.t()}
           | %{type: :set | :clear, fact: String.t()}
+          | %{type: :bug, id: String.t()}
           | %{type: :win}
 
   @type event :: %{
@@ -199,6 +200,9 @@ defmodule SeedyDotDot.World do
 
       "win" ->
         parse_action_body(rest, %{action | effects: action.effects ++ [%{type: :win}]})
+
+      "bug " <> id when id != "" ->
+        parse_action_body(rest, %{action | effects: action.effects ++ [%{type: :bug, id: id}]})
 
       directive ->
         {:error, "unexpected action directive: #{inspect(directive)}"}

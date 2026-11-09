@@ -30,4 +30,13 @@ defmodule SeedyDotDot.DungeonTest do
     assert {^won_game, "The game is over. Type restart to play again."} =
              Game.command(won_game, "look")
   end
+
+  @tag :tidex_demo
+  test "the Box of Bugs remains contained" do
+    {:ok, world} = World.load(Path.expand("../priv/dungeon.txt", __DIR__))
+    game = Game.new(world)
+
+    assert {^game, "The label promises this is completely safe."} =
+             Game.command(game, "open box of bugs")
+  end
 end

@@ -7,8 +7,16 @@ room lobby
   been a respectable computer science department.
   A faded sign reads:
   ABANDON ALL FRAMEWORKS, YE WHO ENTER HERE.
+  A sealed box bears the label: BUGS (ALLEGEDLY CONTAINED).
   A corridor leads north.
   north corridor
+end
+
+object box_of_bugs
+  name box of bugs
+  description The box hums faintly and should probably remain closed.
+  at lobby
+  fixed
 end
 
 room corridor
@@ -61,6 +69,12 @@ object fire_door
   description The fire door has a reassuringly ordinary push bar.
   at escape
   fixed
+end
+
+action open box of bugs
+  require here.box_of_bugs
+  say The label promises this is completely safe.
+  bug box_of_bugs
 end
 
 action use ruby on console
