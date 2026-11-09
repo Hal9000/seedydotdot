@@ -7,8 +7,32 @@ room lobby
   been a respectable computer science department.
   A faded sign reads:
   ABANDON ALL FRAMEWORKS, YE WHO ENTER HERE.
+  A sealed box bears the label: BUGS (ALLEGEDLY CONTAINED).
+  A closet door is marked: RUNTIME EXCEPTIONS.
+  A Big Red Do Not Press Button is waiting with patient confidence.
   A corridor leads north.
   north corridor
+end
+
+object box_of_bugs
+  name box of bugs
+  description The box hums faintly and should probably remain closed.
+  at lobby
+  fixed
+end
+
+object closet_of_runtime_exceptions
+  name closet of runtime exceptions
+  description The closet door rattles in a way that suggests it has opinions about control flow.
+  at lobby
+  fixed
+end
+
+object big_red_do_not_press_button
+  name big red do not press button
+  description The button is very red, very large, and very clearly not to be pressed.
+  at lobby
+  fixed
 end
 
 room corridor
@@ -61,6 +85,24 @@ object fire_door
   description The fire door has a reassuringly ordinary push bar.
   at escape
   fixed
+end
+
+action open box of bugs
+  require here.box_of_bugs
+  say The label promises this is completely safe.
+  bug box_of_bugs
+end
+
+action open closet of runtime exceptions
+  require here.closet_of_runtime_exceptions
+  say The closet remains quiet.
+  bug closet_of_runtime_exceptions
+end
+
+action press big red do not press button
+  require here.big_red_do_not_press_button
+  say The button remains unpressed.
+  bug big_red_do_not_press_button
 end
 
 action use ruby on console
