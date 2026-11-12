@@ -54,7 +54,7 @@ end
 room segvault
   You stand before THE SEGVAULT. It hums with the smug certainty
   of a memory error that has not happened yet.
-  {?console.dormant:A black console has a suspiciously ruby-shaped socket.|The console now glows with a ruby-red certainty.}
+  A black console has a suspiciously ruby-shaped socket.
   The staircase is south.
   south ruby_room
   north escape if escape.open
@@ -74,7 +74,7 @@ object ruby
 end
 
 object pedestal
-  name pedestal
+  name Pedestal of Object Permanence
   description The pedestal is far too elegant to be portable.
   at ruby_room
   fixed

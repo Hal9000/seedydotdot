@@ -54,4 +54,35 @@ defmodule SeedyDotDot.DungeonTest do
     assert {^game, "The button remains unpressed."} =
              Game.command(game, "press big red do not press button")
   end
+
+  test "the Pedestal of Object Permanence releases the ruby" do
+    game = game_in_ruby_room()
+    assert {carrying_game, "Taken."} = Game.command(game, "take ruby")
+    assert {^carrying_game, output} = Game.command(carrying_game, "look")
+
+    refute output =~ "rests on a pedestal"
+  end
+
+  test "the Stale Console changes after the ruby is used" do
+    game = game_in_ruby_room()
+    assert {game, "Taken."} = Game.command(game, "take ruby")
+    assert {game, "  You stand before THE SEGVAULT." <> _} = Game.command(game, "north")
+
+    assert {game, "The ruby fits the socket. Somewhere, a machine sounds less dormant."} =
+             Game.command(game, "use ruby on console")
+
+    assert {^game, output} = Game.command(game, "look")
+    assert output =~ "The console now glows with a ruby-red certainty."
+  end
+
+  defp game_in_ruby_room do
+    {:ok, world} = World.load(Path.expand("../priv/dungeon.txt", __DIR__))
+    game = Game.new(world, choose: &List.last/1)
+
+    assert {game, "  You are in a poorly illuminated corridor." <> _} =
+             Game.command(game, "north")
+
+    assert {game, "  Everything here is a little too polished." <> _} = Game.command(game, "east")
+    game
+  end
 end
